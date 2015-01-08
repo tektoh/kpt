@@ -1,0 +1,11 @@
+{
+    "applications": {
+        "_default": {
+            "link": "kpt"
+        }, 
+        "kpt": {
+            "applicationId": "YourApplicationId",
+            "masterKey": "YourMasterKey"
+        }
+    }
+}
