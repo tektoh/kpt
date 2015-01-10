@@ -13,6 +13,7 @@
       var currentUser = Parse.User.current();
       if (!currentUser) {
         location.href = 'login.html';
+        return false;
       }
 
       $('#logoutButton').on('click', function() {
