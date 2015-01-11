@@ -1,0 +1,270 @@
+Parse.initialize("<%= APPLICATION_ID %>", "<%= JAVASCRIPT_KEY %>");
+
+window.currentUser = Parse.User.current();
+
+window.AppRouter = Parse.Router.extend({
+  routes: {
+    '': 'index',
+    'signup': 'signup',
+    'login': 'login',
+    'kpt?id=:id': 'kpt'
+  },
+  index: function() {
+    if (!currentUser) {
+      location.href = '/login';
+    }
+    var logoutButton = new LogoutButtonView();
+    var newKptFormView = new NewKptFormView();
+  },
+  signup: function() {
+    var signupFormView = new SignupFormView();
+  },
+  login: function() {
+    var loginForm = new LoginFormView();
+  },
+  kpt: function(id) {
+    if (!currentUser) {
+      location.href = '/login';
+    }
+    var Kpt = Parse.Object.extend("Kpt");
+    var query = new Parse.Query(Kpt);
+    query.equalTo('objectId', id);
+    query.first({
+      success: function(kpt) {
+        $('#title').html(kpt.get('title'));
+        var KeepListView = new CardListView({
+          el: '#keepList',
+          model: kpt
+        });
+        var ProblemListView = new CardListView({
+          el: '#problemList',
+          model: kpt
+        });
+        var tryListView = new CardListView({
+          el: '#tryList',
+          model: kpt
+        });
+      }
+    });
+  },
+});
+
+$(function() {
+  var router = new AppRouter();
+  Parse.history.start({pushState: true});
+});
+
+function showErrorMessage(object, error) {
+  alert("Error: " + error.code + " " + error.message);
+}
+
+window.LogoutButtonView = Parse.View.extend({
+  el: '.logoutButton',
+  events: {
+    'click': 'logout'
+  },
+  logout: function() {
+    Parse.User.logOut();
+    location.href = '/login';
+  }
+});
+
+window.SignupFormView = Parse.View.extend({
+  el: '.signupForm',
+  events: {
+    'submit': 'signup'
+  },
+  signup: function() {
+    var user = new Parse.User();
+    user.set("username", this.$('#inputUsername').val());
+    //user.set("email", this.$('#inputEmail').val());
+    user.set("password", this.$('#inputPassword').val());
+    user.signUp(null, {
+      success: function() {
+        location.href = '/';
+      },
+      error: showErrorMessage
+    });
+    return false;
+  }
+});
+
+window.LoginFormView = Parse.View.extend({
+  el: '.loginForm',
+  events: {
+    'submit': 'login'
+  },
+  login: function() {
+    Parse.User.logIn(this.$('#inputUsername').val(), this.$('#inputPassword').val(), {
+      success: function(user) {
+        location.href = '/';
+      },
+      error: showErrorMessage
+    });
+    return false;
+  }
+});
+
+window.NewKptFormView = Parse.View.extend({
+  el: '.newKptForm',
+  events: {
+    'submit': 'newKpt'
+  },
+  initialize: function() {
+    this.kptListView = new KptListView();
+    this.kptListView.render();
+  },
+  newKpt: function() {
+    var Kpt = Parse.Object.extend("Kpt");
+    var kpt = new Kpt();
+    kpt.set('createdBy', currentUser);
+    kpt.set('title', this.$('#inputTitle').val());
+    kpt.save(null, {
+      success: _.bind(function(kpt) {
+        location.href = '/kpt?id=' + kpt.id
+      }, this),
+      error: showErrorMessage
+    });
+  }
+});
+
+window.KptListView = Parse.View.extend({
+  el: '.kptList',
+  render: function() {
+    var Kpt = Parse.Object.extend("Kpt");
+    var query = new Parse.Query(Kpt);
+    query.addDescending('createdAt');
+    query.find({
+      success: _.bind(function(results) {
+        this.$('li').remove();
+        _.each(results, function(kpt) {
+          this.$('.kptListTemplate').tmpl({
+            id: kpt.id,
+            title: kpt.get('title'),
+            createdAt: kpt.createdAt
+          }).appendTo(this.$el);
+        }, this);
+      }, this),
+      error: showErrorMessage
+    });
+  }
+});
+
+window.CardListView = Parse.View.extend({
+  events: {
+    'submit .newCardForm': 'newCard',
+    'click .deleteCardButton': 'deleteCard',
+    'click .voteCardButton': 'voteCard'
+  },
+
+  initialize: function() {
+    this.render();
+  },
+
+  render: function() {
+    var kpt = this.model;
+    var label = this.$el.data('label');
+
+    kpt.relation(label).query().addDescending('vote').find({
+      success: _.bind(function(results) {
+        this.$el.html('');
+
+        this.$el.append('<ul class="list-group"></ul>');
+        var $ul = this.$('ul');
+        var $cardListTemplate = $('#cardListTemplate');
+
+        _.each(results, function(card) {
+          $cardListTemplate.tmpl({
+            cardid: card.id,
+            title: card.get('title'),
+            vote: card.get('vote')
+          }).appendTo($ul);
+        }, this);
+
+        $('#newCardFormTemplate').tmpl().appendTo(this.$el);
+
+      }, this)
+    });
+  },
+
+  newCard: function() {
+    var kpt = this.model;
+    var label = this.$el.data('label');
+    var title = this.$('.inputCardTitle').val();
+
+    var Card = Parse.Object.extend("Card");
+    var card = new Card();
+
+    card.set('createdBy', currentUser);
+    card.set('title', title);
+    card.set('vote', 0);
+
+    card.save(null, {
+      success: _.bind(function(card) {
+        var relation = kpt.relation(label);
+        relation.add(card);
+
+        kpt.save(null, {
+          success: _.bind(function() {
+            this.render();
+          }, this),
+
+          error: showErrorMessage
+        });
+      }, this),
+
+      error: showErrorMessage
+    });
+    return false;
+  },
+
+  voteCard: function(e) {
+    var vote = Number($(e.target).data('vote'));
+    var objectId = $(e.target).data('cardid');
+
+    console.log(objectId, vote);
+
+    var Card = Parse.Object.extend("Card");
+    var query = new Parse.Query(Card);
+
+    query.equalTo('objectId', objectId).first({
+      success: _.bind(function(card) {
+        var v = card.get('vote');
+        v = v + vote;
+        card.set('vote', v);
+        card.save(null, {
+          success: _.bind(function() {
+            this.render();
+          }, this),
+          error: showErrorMessage
+        });
+      }, this),
+    });
+  },
+
+  deleteCard: function(e) {
+    var kpt = this.model;
+    var label = this.$el.data('label');
+    var relation = kpt.relation(label);
+    var objectId = $(e.target).data('cardid');
+
+    var Card = Parse.Object.extend("Card");
+    var query = new Parse.Query(Card);
+
+    query.equalTo('objectId', objectId).first({
+      success: _.bind(function(card) {
+        relation.remove(card);
+
+        kpt.save(null, {
+          success: _.bind(function() {
+            this.render();
+          }, this),
+
+          error: showErrorMessage
+        });
+      }, this),
+
+      error: showErrorMessage
+    });
+  }
+});
