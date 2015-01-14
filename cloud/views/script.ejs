@@ -31,7 +31,11 @@ window.AppRouter = Parse.Router.extend({
     query.equalTo('objectId', id);
     query.first({
       success: function(kpt) {
-        $('#title').html(kpt.get('title'));
+
+        var kptTitleView = new KptTitleView({
+          model: kpt
+        });
+
         var KeepListView = new CardListView({
           el: '#keepList',
           model: kpt
@@ -128,8 +132,47 @@ window.NewKptFormView = Parse.View.extend({
   }
 });
 
+window.KptTitleView = Parse.View.extend({
+  el: '.kptTitle',
+  events: {
+    'click .kptTitleText': 'editTitle',
+    'submit .editKptTitleForm': 'updateTitle'
+  },
+  initialize: function() {
+    this.render();
+  },
+  render: function() {
+    var kpt = this.model;
+    this.$el.html('<h1 class="kptTitleText text-center">' + kpt.get('title') + '</h1>');
+  },
+  editTitle: function() {
+    var kpt = this.model;
+
+    this.$el.html('');
+    $('#kptTitleForm').tmpl({
+      'title': kpt.get('title')
+    }).appendTo(this.$el);
+  },
+  updateTitle: function() {
+    var kpt = this.model;
+    kpt.set('title', this.$('.inputKptTitle').val());
+    kpt.save(null, {
+      success: _.bind(function(kpt) {
+        this.model = kpt;
+        this.render();
+      }, this),
+      error: showErrorMessage
+    });
+    this.render();
+    return false;
+  }
+});
+
 window.KptListView = Parse.View.extend({
   el: '.kptList',
+  events: {
+    'click .kptDeleteButton': 'deleteKpt'
+  },
   render: function() {
     var Kpt = Parse.Object.extend("Kpt");
     var query = new Parse.Query(Kpt);
@@ -147,6 +190,22 @@ window.KptListView = Parse.View.extend({
       }, this),
       error: showErrorMessage
     });
+  },
+  deleteKpt: function(e) {
+    if(!window.confirm('削除します。')){
+      return true;
+    }
+    var objectId = $(e.target).data('id');
+    var Kpt = Parse.Object.extend("Kpt");
+    var kpt = new Kpt();
+
+    kpt.id = objectId;
+    kpt.destroy({
+      success: _.bind(function() {
+        this.render();
+      }, this),
+      error: showErrorMessage
+    })
   }
 });
 
