@@ -120,15 +120,81 @@ window.NewKptFormView = Parse.View.extend({
   },
   newKpt: function() {
     var Kpt = Parse.Object.extend("Kpt");
+    var query = new Parse.Query(Kpt);
+
+    var k = null,
+        p = null,
+        t = null;
+
+    query.addDescending('createdAt');
+    query.first({
+      success: _.bind(function(results) {
+        if (!results) {
+          this.saveKpt([], [], []);
+          return;
+        }
+
+        results.relation('keep').query().find({
+          success: _.bind(function(results) {
+            k = results;
+            if (k && p && t) {
+              this.saveKpt(k, p, t);
+            }
+          }, this),
+          error: showErrorMessage
+        });
+
+        results.relation('problem').query().find({
+          success: _.bind(function(results) {
+            p = results;
+            if (k && p && t) {
+              this.saveKpt(k, p, t);
+            }
+          }, this),
+          error: showErrorMessage
+        });
+
+        results.relation('try').query().find({
+          success: _.bind(function(results) {
+            t = results;
+            if (k && p && t) {
+              this.saveKpt(k, p, t);
+            }
+          }, this),
+          error: showErrorMessage
+        });
+
+      }, this),
+      error: showErrorMessage
+    });
+
+    return false;
+  },
+  saveKpt: function(k, p, t) {
+    var Kpt = Parse.Object.extend("Kpt");
     var kpt = new Kpt();
     kpt.set('createdBy', currentUser);
-    kpt.set('title', this.$('#inputTitle').val());
+    kpt.set('title', this.$('.newKptTitle').val());
+
+    _.each(k, function(card) {
+      this.add(card);
+    }, kpt.relation('keep'));
+
+    _.each(p, function(card) {
+      this.add(card);
+    }, kpt.relation('problem'));
+
+    _.each(t, function(card) {
+      this.add(card);
+    }, kpt.relation('try'));
+
     kpt.save(null, {
       success: _.bind(function(kpt) {
         location.href = '/kpt?id=' + kpt.id
       }, this),
       error: showErrorMessage
     });
+
   }
 });
 
