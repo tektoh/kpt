@@ -51,6 +51,9 @@
         <h4>${title}</h4>
         <div class="text-right">
           <button class="deleteCardButton btn btn-link btn-sm" data-cardid=${cardid}>Delete</button>
+          {{if moveTo}}
+          <button class="moveCardButton btn btn-link btn-sm" data-cardid=${cardid} data-moveto=${moveTo}>${moveToLabel}</button>
+          {{/if}}
           <button class="voteCardButton btn btn-primary btn-sm" data-vote="1" data-cardid=${cardid}>+1</button>
         </div>
       </li>
