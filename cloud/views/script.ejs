@@ -36,11 +36,11 @@ window.AppRouter = Parse.Router.extend({
           model: kpt
         });
 
-        var KeepListView = new CardListView({
+        var keepListView = new CardListView({
           el: '#keepList',
           model: kpt
         });
-        var ProblemListView = new CardListView({
+        var problemListView = new CardListView({
           el: '#problemList',
           model: kpt
         });
@@ -48,6 +48,12 @@ window.AppRouter = Parse.Router.extend({
           el: '#tryList',
           model: kpt
         });
+
+        window.renderAllListView = function() {
+          keepListView.render();
+          problemListView.render();
+          tryListView.render();
+        }
       }
     });
   },
@@ -279,6 +285,7 @@ window.CardListView = Parse.View.extend({
   events: {
     'submit .newCardForm': 'newCard',
     'click .deleteCardButton': 'deleteCard',
+    'click .moveCardButton': 'moveCard',
     'click .voteCardButton': 'voteCard'
   },
 
@@ -297,12 +304,19 @@ window.CardListView = Parse.View.extend({
         this.$el.append('<ul class="list-group"></ul>');
         var $ul = this.$('ul');
         var $cardListTemplate = $('#cardListTemplate');
-
+        var moveTo = null;
+        var moveToLabel = null;
+        if (label == 'try') {
+          moveTo = 'keep';
+          moveToLabel = 'Keep';
+        }
         _.each(results, function(card) {
           $cardListTemplate.tmpl({
             cardid: card.id,
             title: card.get('title'),
-            vote: card.get('vote')
+            vote: card.get('vote'),
+            moveTo: moveTo,
+            moveToLabel: moveToLabel
           }).appendTo($ul);
         }, this);
 
@@ -347,8 +361,6 @@ window.CardListView = Parse.View.extend({
     var vote = Number($(e.target).data('vote'));
     var objectId = $(e.target).data('cardid');
 
-    console.log(objectId, vote);
-
     var Card = Parse.Object.extend("Card");
     var query = new Parse.Query(Card);
 
@@ -368,6 +380,9 @@ window.CardListView = Parse.View.extend({
   },
 
   deleteCard: function(e) {
+    if(!window.confirm('削除します。')){
+      return true;
+    }
     var kpt = this.model;
     var label = this.$el.data('label');
     var relation = kpt.relation(label);
@@ -383,6 +398,38 @@ window.CardListView = Parse.View.extend({
         kpt.save(null, {
           success: _.bind(function() {
             this.render();
+          }, this),
+
+          error: showErrorMessage
+        });
+      }, this),
+
+      error: showErrorMessage
+    });
+  },
+  moveCard: function(e) {
+    var kpt = this.model;
+    var label = this.$el.data('label');
+    var moveTo = $(e.target).data('moveto');
+    var relationFrom = kpt.relation(label);
+    var relationTo = kpt.relation(moveTo);
+    var objectId = $(e.target).data('cardid');
+
+    if(!window.confirm($(e.target).text() + 'に移動します。')){
+      return true;
+    }
+
+    var Card = Parse.Object.extend("Card");
+    var query = new Parse.Query(Card);
+
+    query.equalTo('objectId', objectId).first({
+      success: _.bind(function(card) {
+        relationFrom.remove(card);
+        relationTo.add(card);
+
+        kpt.save(null, {
+          success: _.bind(function() {
+            renderAllListView();
           }, this),
 
           error: showErrorMessage
