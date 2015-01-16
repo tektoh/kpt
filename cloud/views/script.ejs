@@ -49,6 +49,10 @@ window.AppRouter = Parse.Router.extend({
           model: kpt
         });
 
+        var kptMarkdownView = new KptMarkdownView({
+          model: kpt
+        });
+
         window.renderAllListView = function() {
           keepListView.render();
           problemListView.render();
@@ -438,5 +442,65 @@ window.CardListView = Parse.View.extend({
 
       error: showErrorMessage
     });
+  }
+});
+
+window.KptMarkdownView = Parse.View.extend({
+  el: '.kptMarkdown',
+  events: {
+    'click .kptMarkdownButton': 'render'
+  },
+
+  render: function() {
+    var kpt = this.model;
+    var cards = {
+      Keep: null, Problem: null, Try: null
+    };
+
+    kpt.relation('keep').query().addDescending('vote').find({
+      success: _.bind(function(results) {
+        cards.Keep = results;
+        if (cards.Keep && cards.Problem && cards.Try) {
+          this.renderMarkdown(cards);
+        }
+      }, this),
+      error: showErrorMessage
+    });
+
+    kpt.relation('problem').query().addDescending('vote').find({
+      success: _.bind(function(results) {
+        cards.Problem = results;
+        if (cards.Keep && cards.Problem && cards.Try) {
+          this.renderMarkdown(cards);
+        }
+      }, this),
+      error: showErrorMessage
+    });
+
+    kpt.relation('try').query().addDescending('vote').find({
+      success: _.bind(function(results) {
+        cards.Try = results;
+        if (cards.Keep && cards.Problem && cards.Try) {
+          this.renderMarkdown(cards);
+        }
+      }, this),
+      error: showErrorMessage
+    });
+
+    $('.bs-modal-lg').modal();
+  },
+  renderMarkdown: function(cards) {
+    var kpt = this.model;
+    var md = '# ' + kpt.get('title') + "\n\n";
+
+    _.each(cards, function(list, label) {
+      md += '## ' + label + ' [' + list.length + ']' + "\n\n";
+      _.each(list, function(card) {
+        md += '- ' + card.get('title') + ' ' + card.get('vote') + "\n";
+      }, this);
+      md += "\n";
+    }, this);
+
+    this.$('.kptMarkdownText').html(md);
   }
 });
